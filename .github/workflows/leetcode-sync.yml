@@ -1,0 +1,57 @@
+name: LeetCode Synchronizer
+
+on:
+  workflow_dispatch:   # manual trigger
+  schedule:
+    - cron: "0 0 * * *"   # runs daily at midnight UTC
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Run LeetCode Synchronizer
+        env:
+          LEETCODE_SESSION: ${{ secrets.LEETCODE_SESSION }}
+          LEETCODE_CSRF_TOKEN: ${{ secrets.LEETCODE_CSRF_TOKEN }}
+        run: |
+          python <<EOF
+          import requests, os, json, datetime
+
+          session = os.environ['LEETCODE_SESSION']
+          csrf = os.environ['LEETCODE_CSRF_TOKEN']
+          headers = {
+              "cookie": f"LEETCODE_SESSION={session}; csrftoken={csrf}",
+              "x-csrftoken": csrf,
+              "content-type": "application/json"
+          }
+
+          url = "https://leetcode.com/api/submissions/?offset=0&limit=20"
+          r = requests.get(url, headers=headers)
+          data = r.json()
+
+          with open("leetcode_submissions.json", "w") as f:
+              json.dump(data, f, indent=2)
+
+          with open("sync.log", "a") as f:
+              f.write(str(datetime.datetime.now()) + " Synced!\n")
+          EOF
+
+      - name: Commit and push
+        run: |
+          git config --global user.name "leetcode-bot"
+          git config --global user.email "leetcode-bot@example.com"
+          git add .
+          git commit -m "Sync LeetCode submissions"
+          git push
